@@ -61,8 +61,6 @@ async function initializeDatabase() {
     `);
     
     // Clean up any duplicate health_checks and add unique constraint
-    console.log('🧹 Cleaning up duplicate health check records...');
-    
     // Delete duplicate records, keeping only the most recent for each source
     await pool.query(`
       DELETE FROM health_checks 
@@ -80,13 +78,8 @@ async function initializeDatabase() {
         ADD CONSTRAINT health_checks_source_name_unique 
         UNIQUE (source_name)
       `);
-      console.log('✅ Added unique constraint to health_checks.source_name');
     } catch (constraintError) {
-      if (constraintError.message.includes('already exists')) {
-        console.log('ℹ️ Unique constraint already exists on health_checks.source_name');
-      } else {
-        console.log('⚠️ Could not add unique constraint:', constraintError.message);
-      }
+
     }
     
     // Add unique constraint to components if it doesn't exist
@@ -96,13 +89,8 @@ async function initializeDatabase() {
         ADD CONSTRAINT components_health_check_component_unique 
         UNIQUE (health_check_id, component_name)
       `);
-      console.log('✅ Added unique constraint to components');
     } catch (constraintError) {
-      if (constraintError.message.includes('already exists')) {
-        console.log('ℹ️ Unique constraint already exists on components');
-      } else {
-        console.log('⚠️ Could not add unique constraint to components:', constraintError.message);
-      }
+
     }
     
     // Add updated_at column to components if it doesn't exist
@@ -111,13 +99,8 @@ async function initializeDatabase() {
         ALTER TABLE components 
         ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       `);
-      console.log('✅ Added updated_at column to components');
     } catch (columnError) {
-      if (columnError.message.includes('already exists')) {
-        console.log('ℹ️ updated_at column already exists on components');
-      } else {
-        console.log('⚠️ Could not add updated_at column to components:', columnError.message);
-      }
+
     }
     
     // Add updated_at column to health_checks if it doesn't exist  
@@ -126,13 +109,8 @@ async function initializeDatabase() {
         ALTER TABLE health_checks 
         ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       `);
-      console.log('✅ Added updated_at column to health_checks');
     } catch (columnError) {
-      if (columnError.message.includes('already exists')) {
-        console.log('ℹ️ updated_at column already exists on health_checks');
-      } else {
-        console.log('⚠️ Could not add updated_at column to health_checks:', columnError.message);
-      }
+        
     }
     
     // Create indexes for better performance
@@ -164,19 +142,8 @@ async function storeHealthCheck(sourceResult) {
   try {
     await client.query('BEGIN');
     
-    console.log(`💾 Storing/updating health check for ${sourceResult.name}`);
-    console.log('Source result data:', {
-      name: sourceResult.name,
-      type: sourceResult.type,
-      hasHtmlData: !!sourceResult.htmlData,
-      hasXmlData: !!sourceResult.xmlData,
-      hasRssData: !!sourceResult.rssData,
-      hasJsonData: !!sourceResult.jsonData,
-      htmlComponentCount: sourceResult.htmlData?.components?.length || 0,
-      xmlComponentCount: sourceResult.xmlData?.components?.length || 0,
-      rssComponentCount: sourceResult.rssData?.components?.length || 0,
-      jsonComponentCount: sourceResult.jsonData?.components?.length || 0
-    });
+    //console.log(`Storing/updating health check for ${sourceResult.name}`);
+
     
     // Upsert main health check record (update if exists, insert if not)
     const healthCheckResult = await client.query(
@@ -214,17 +181,11 @@ async function storeHealthCheck(sourceResult) {
     
     // Insert new component details if available
     const componentData = sourceResult.htmlData || sourceResult.xmlData || sourceResult.rssData || sourceResult.jsonData;
-    console.log(`🔍 Component data check for ${sourceResult.name}:`, {
-      componentData: !!componentData,
-      hasComponents: !!(componentData && componentData.components),
-      componentCount: componentData?.components?.length || 0
-    });
     
     if (componentData && componentData.components) {
-      console.log(`💾 Storing ${componentData.components.length} components for ${sourceResult.name}`);
+    //  console.log(`Storing ${componentData.components.length} components for ${sourceResult.name}`);
       
       for (const component of componentData.components) {
-        console.log(`  - Storing component: ${component.name} (${component.status})`);
         await client.query(
           `INSERT INTO components 
            (health_check_id, component_name, component_status, is_error, status_text, error_messages, details)
@@ -245,7 +206,6 @@ async function storeHealthCheck(sourceResult) {
     }
     
     await client.query('COMMIT');
-    console.log(`✅ Successfully updated health check for ${sourceResult.name}`);
     return healthCheckId;
   } catch (error) {
     await client.query('ROLLBACK');
@@ -338,15 +298,7 @@ async function getLatestHealthData() {
         }
         
         results.push(result);
-        console.log(`✅ Added result for ${check.source_name}:`, {
-          name: result.name,
-          type: result.type,
-          hasHtmlData: !!result.htmlData,
-          hasXmlData: !!result.xmlData,
-          hasRssData: !!result.rssData,
-          hasJsonData: !!result.jsonData,
-          componentCount: result.htmlData?.totalComponents || result.xmlData?.totalComponents || result.rssData?.totalComponents || result.jsonData?.totalComponents || 0
-        });
+
       } catch (componentError) {
         console.error(`❌ Error processing components for ${check.source_name}:`, componentError.message);
         // Add the result anyway but without component data
@@ -1196,33 +1148,25 @@ function parseElementsForOutages(elements, $) {
 // Function to parse HTML status page
 function parseHtmlStatus(html, htmlConfig) {
   try {
-    console.log(`🔍 parseHtmlStatus called for selector: ${htmlConfig.componentSelector}`);
     const $ = cheerio.load(html);
     const components = [];
     let totalErrors = 0;
     
-    // Debug: Log what we're looking for
-    console.log(`🔍 Looking for components with selector: ${htmlConfig.componentSelector}`);
-    
     // Handle special Springshare blog logic
     if (htmlConfig.customLogic === 'springshare-blog') {
-      console.log('📝 Using Springshare blog logic');
       return parseSpringshareBloc(html, $, htmlConfig);
     }
     
     // Handle special OCLC services logic
     if (htmlConfig.customLogic === 'oclc-services') {
-      console.log('🔧 Using OCLC services logic');
       return parseOclcServices(html, $, htmlConfig);
     }
     
     // First, try to find any elements with the selector
     const foundElements = $(htmlConfig.componentSelector);
-    console.log(`📊 Found ${foundElements.length} potential components`);
     
     // If no components found with primary selector, try fallback selectors
     if (foundElements.length === 0) {
-  //    console.log('⚠️ No components found with primary selector, trying fallbacks...');
       
       // Try common status page selectors
       const fallbackSelectors = [
@@ -1290,14 +1234,6 @@ function parseHtmlStatus(html, htmlConfig) {
       healthyCount: components.length - totalErrors,
       components: components
     };
-    
-    console.log('🎯 parseHtmlStatus returning:', {
-      totalComponents: result.totalComponents,
-      errorCount: result.errorCount,
-      healthyCount: result.healthyCount,
-      componentsLength: result.components.length,
-      firstComponent: result.components[0]?.name || 'none'
-    });
     
     return result;
   } catch (error) {
@@ -1539,9 +1475,7 @@ async function parseJsonStatus(jsonData, jsonConfig) {
     if (!Array.isArray(services)) {
       services = [services];
     }
-    
-    console.log(`📊 Found ${services.length} services in JSON data`);
-    
+        
     const components = [];
     let totalErrors = 0;
     
@@ -1594,7 +1528,6 @@ async function parseJsonStatus(jsonData, jsonConfig) {
 // Function to check a single external source
 async function checkSource(source) {
   try {
-    console.log(`🔍 Checking source: ${source.name} (${source.type})`);
     const startTime = Date.now();
     const response = await axios.get(source.url, {
       timeout: 10000, // Increased timeout for HTML pages
@@ -1607,8 +1540,6 @@ async function checkSource(source) {
       }
     });
     const responseTime = Date.now() - startTime;
-
-    console.log(`✅ ${source.name} responded with status ${response.status} in ${responseTime}ms`);
 
     // Check HTTP status first
     if (response.status >= 400) {
@@ -1628,13 +1559,6 @@ async function checkSource(source) {
     if (source.type === 'html' && source.htmlConfig) {
       console.log(`🔍 Parsing HTML for ${source.name}...`);
       const htmlData = parseHtmlStatus(response.data, source.htmlConfig);
-      console.log(`📊 HTML parsing result for ${source.name}:`, {
-        totalComponents: htmlData.totalComponents,
-        errorCount: htmlData.errorCount,
-        healthyCount: htmlData.healthyCount,
-        componentsLength: htmlData.components?.length || 0,
-        firstComponent: htmlData.components?.[0]?.name || 'none'
-      });
       
       return {
         name: source.name,
@@ -1795,15 +1719,6 @@ async function checkAllSources() {
 
 // Function to generate summary
 function generateSummary(results) {
-  console.log('🔍 Generating summary for results:', results.map(r => ({
-    name: r.name,
-    type: r.type,
-    hasHtmlData: !!r.htmlData,
-    hasXmlData: !!r.xmlData,
-    hasRssData: !!r.rssData,
-    hasJsonData: !!r.jsonData,
-    componentCount: r.htmlData?.totalComponents || r.xmlData?.totalComponents || r.rssData?.totalComponents || r.jsonData?.totalComponents || 0
-  })));
   
   // Find the most recent check time from all results
   const checkTimes = results.map(r => new Date(r.timestamp)).filter(date => !isNaN(date));
@@ -1895,7 +1810,7 @@ app.get('/', async (req, res) => {
     <!DOCTYPE html>
     <html>
     <head>
-        <title>System Health Monitor</title>
+        <title>Library Services Health Monitor</title>
         <style>
             body { font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }
             .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
@@ -1918,7 +1833,6 @@ app.get('/', async (req, res) => {
             details summary { cursor: pointer; font-weight: bold; }
             details ul { padding-left: 20px; }
             .db-info { background: #e8f5e8; padding: 10px; border-radius: 4px; margin-bottom: 20px; font-size: 0.9em; }
-            .manual-check { background: #fff3cd; border: 1px solid #ffeaa7; padding: 10px; border-radius: 4px; margin: 10px 0; }
             .check-btn { background: #17a2b8; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px; }
             .check-btn:hover { background: #138496; }
             .check-btn:disabled { background: #6c757d; cursor: not-allowed; }
@@ -1927,31 +1841,14 @@ app.get('/', async (req, res) => {
     <body>
         <div class="container">
             <div class="header">
-                <h1>🏥 System Health Monitor</h1>
-                <p>Real-time monitoring of external service dependencies</p>
+                <h1>Library Services Health Monitor</h1>
             </div>
-            
-            <div class="db-info">
-                <strong>📊 Data Source:</strong> PostgreSQL Database (Updated every 5 minutes)<br>
-                <strong>⏰ Last Database Update:</strong> <span id="lastUpdate">${new Date(summary.checkTime).toLocaleString()}</span><br>
-                <strong>🔄 Records:</strong> Updates existing records instead of creating duplicates
-            </div>
-            
-            <div class="manual-check">
-                <strong>🔄 Manual Check:</strong> 
-                <button class="check-btn" onclick="performManualCheck()" id="manualCheckBtn">Run Health Check Now</button>
-                <span id="checkStatus"></span>
-            </div>
-            
-            <div class="summary">
-                <h3>📊 Summary</h3>
-                <p><strong>Total Sources:</strong> ${summary.totalSources}</p>
-                <p><strong>Healthy:</strong> <span class="ok">${summary.healthySources}</span></p>
-                <p><strong>Errors:</strong> <span class="error">${summary.errorSources}</span></p>
-                <p><strong>Last Check:</strong> ${new Date(summary.checkTime).toLocaleString()}</p>
-            </div>
-            
-            <h3>🔍 Source Details</h3>
+
+            <strong>Last Database Update:</strong> <span id="lastUpdate">${new Date(summary.checkTime).toLocaleString()}</span><br><br>
+            <button class="check-btn" onclick="performManualCheck()" id="manualCheckBtn">🔄 Run Health Check Now</button>
+            <span id="checkStatus"></span>
+        
+        
             ${summary.sources.map(source => `
                 <div class="source ${source.status === 'OK' ? 'ok' : 'error'}">
                     <a href="${EXTERNAL_SOURCES.find(s => s.name === source.name)?.url || '#'}" target="_blank" class="external-link" title="View ${source.name} source">↗︎</a>
@@ -2031,9 +1928,7 @@ app.get('/', async (req, res) => {
                     ` : ''}
                 </div>
             `).join('')}
-            
-            <button class="refresh-btn" onclick="location.reload()">🔄 Refresh Status</button>
-            
+                        
             <div style="margin-top: 20px; padding: 10px; background: #f9f9f9; border-radius: 4px;">
                 <strong>API Endpoints:</strong><br>
                 <a href="/health">/health</a> - JSON summary (from database)<br>
@@ -2155,30 +2050,23 @@ async function consoleMonitor() {
     }
   });
   
-  console.log('\n' + '='.repeat(50));
-  console.log(`🌐 Web Dashboard: http://localhost:${PORT}`);
-  console.log(`📡 API Endpoint: http://localhost:${PORT}/health`);
+
 }
 
 // Start the server
 app.listen(PORT, async () => {
-  console.log(`\n🚀 System Health Monitor started on port ${PORT}`);
+  console.log(`\nSystem Health Monitor started on port ${PORT}`);
   
   try {
     // Initialize database
     await initializeDatabase();
     
     // Perform initial health check
-    console.log('🔍 Performing initial health check...');
     await performHealthChecks();
     
     // Set up periodic monitoring every 5 minutes
     setInterval(performHealthChecks, 5 * 60 * 1000);
     
-    console.log('✅ Background monitoring started (every 5 minutes)');
-    console.log(`🌐 Web Dashboard: http://localhost:${PORT}`);
-    console.log(`📡 API Endpoint: http://localhost:${PORT}/health`);
-    console.log(`🔄 Manual Check: POST http://localhost:${PORT}/health/check`);
     
   } catch (error) {
     console.error('❌ Failed to start monitoring system:', error.message);
