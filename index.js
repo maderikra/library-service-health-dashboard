@@ -40,7 +40,8 @@ async function initializeDatabase() {
         is_error BOOLEAN NOT NULL DEFAULT false,
         response_time INTEGER,
         error_message TEXT,
-        check_timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        check_timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
     `);
     
@@ -54,9 +55,85 @@ async function initializeDatabase() {
         status_text TEXT,
         error_messages TEXT[],
         details JSONB,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    
+    // Clean up any duplicate health_checks and add unique constraint
+    console.log('🧹 Cleaning up duplicate health check records...');
+    
+    // Delete duplicate records, keeping only the most recent for each source
+    await pool.query(`
+      DELETE FROM health_checks 
+      WHERE id NOT IN (
+        SELECT DISTINCT ON (source_name) id
+        FROM health_checks 
+        ORDER BY source_name, check_timestamp DESC
+      )
+    `);
+    
+    // Add unique constraint if it doesn't exist
+    try {
+      await pool.query(`
+        ALTER TABLE health_checks 
+        ADD CONSTRAINT health_checks_source_name_unique 
+        UNIQUE (source_name)
+      `);
+      console.log('✅ Added unique constraint to health_checks.source_name');
+    } catch (constraintError) {
+      if (constraintError.message.includes('already exists')) {
+        console.log('ℹ️ Unique constraint already exists on health_checks.source_name');
+      } else {
+        console.log('⚠️ Could not add unique constraint:', constraintError.message);
+      }
+    }
+    
+    // Add unique constraint to components if it doesn't exist
+    try {
+      await pool.query(`
+        ALTER TABLE components 
+        ADD CONSTRAINT components_health_check_component_unique 
+        UNIQUE (health_check_id, component_name)
+      `);
+      console.log('✅ Added unique constraint to components');
+    } catch (constraintError) {
+      if (constraintError.message.includes('already exists')) {
+        console.log('ℹ️ Unique constraint already exists on components');
+      } else {
+        console.log('⚠️ Could not add unique constraint to components:', constraintError.message);
+      }
+    }
+    
+    // Add updated_at column to components if it doesn't exist
+    try {
+      await pool.query(`
+        ALTER TABLE components 
+        ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      `);
+      console.log('✅ Added updated_at column to components');
+    } catch (columnError) {
+      if (columnError.message.includes('already exists')) {
+        console.log('ℹ️ updated_at column already exists on components');
+      } else {
+        console.log('⚠️ Could not add updated_at column to components:', columnError.message);
+      }
+    }
+    
+    // Add updated_at column to health_checks if it doesn't exist  
+    try {
+      await pool.query(`
+        ALTER TABLE health_checks 
+        ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      `);
+      console.log('✅ Added updated_at column to health_checks');
+    } catch (columnError) {
+      if (columnError.message.includes('already exists')) {
+        console.log('ℹ️ updated_at column already exists on health_checks');
+      } else {
+        console.log('⚠️ Could not add updated_at column to health_checks:', columnError.message);
+      }
+    }
     
     // Create indexes for better performance
     await pool.query(`
@@ -87,11 +164,34 @@ async function storeHealthCheck(sourceResult) {
   try {
     await client.query('BEGIN');
     
-    // Insert main health check record
+    console.log(`💾 Storing/updating health check for ${sourceResult.name}`);
+    console.log('Source result data:', {
+      name: sourceResult.name,
+      type: sourceResult.type,
+      hasHtmlData: !!sourceResult.htmlData,
+      hasXmlData: !!sourceResult.xmlData,
+      hasRssData: !!sourceResult.rssData,
+      hasJsonData: !!sourceResult.jsonData,
+      htmlComponentCount: sourceResult.htmlData?.components?.length || 0,
+      xmlComponentCount: sourceResult.xmlData?.components?.length || 0,
+      rssComponentCount: sourceResult.rssData?.components?.length || 0,
+      jsonComponentCount: sourceResult.jsonData?.components?.length || 0
+    });
+    
+    // Upsert main health check record (update if exists, insert if not)
     const healthCheckResult = await client.query(
       `INSERT INTO health_checks 
        (source_name, source_url, source_type, status_code, is_error, response_time, error_message)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (source_name) 
+       DO UPDATE SET 
+         source_url = EXCLUDED.source_url,
+         source_type = EXCLUDED.source_type,
+         status_code = EXCLUDED.status_code,
+         is_error = EXCLUDED.is_error,
+         response_time = EXCLUDED.response_time,
+         error_message = EXCLUDED.error_message,
+         check_timestamp = CURRENT_TIMESTAMP
        RETURNING id`,
       [
         sourceResult.name,
@@ -106,10 +206,25 @@ async function storeHealthCheck(sourceResult) {
     
     const healthCheckId = healthCheckResult.rows[0].id;
     
-    // Insert component details if available
+    // Delete existing components for this health check to avoid stale data
+    await client.query(
+      'DELETE FROM components WHERE health_check_id = $1',
+      [healthCheckId]
+    );
+    
+    // Insert new component details if available
     const componentData = sourceResult.htmlData || sourceResult.xmlData || sourceResult.rssData || sourceResult.jsonData;
+    console.log(`🔍 Component data check for ${sourceResult.name}:`, {
+      componentData: !!componentData,
+      hasComponents: !!(componentData && componentData.components),
+      componentCount: componentData?.components?.length || 0
+    });
+    
     if (componentData && componentData.components) {
+      console.log(`💾 Storing ${componentData.components.length} components for ${sourceResult.name}`);
+      
       for (const component of componentData.components) {
+        console.log(`  - Storing component: ${component.name} (${component.status})`);
         await client.query(
           `INSERT INTO components 
            (health_check_id, component_name, component_status, is_error, status_text, error_messages, details)
@@ -125,13 +240,16 @@ async function storeHealthCheck(sourceResult) {
           ]
         );
       }
+    } else {
+      console.log(`⚠️ No components found for ${sourceResult.name} - no component data to store`);
     }
     
     await client.query('COMMIT');
+    console.log(`✅ Successfully updated health check for ${sourceResult.name}`);
     return healthCheckId;
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('❌ Error storing health check:', error.message);
+    console.error(`❌ Error storing health check for ${sourceResult.name}:`, error.message);
     throw error;
   } finally {
     client.release();
@@ -142,16 +260,16 @@ async function getLatestHealthData() {
   try {
     console.log('📊 Retrieving latest health data from database...');
     
-    // Get the latest health check for each source
+    // Get all health checks (now only one per source due to upsert)
     const latestChecks = await pool.query(`
-      SELECT DISTINCT ON (source_name) 
-        id, source_name, source_url, source_type, status_code, 
-        is_error, response_time, error_message, check_timestamp
+      SELECT id, source_name, source_url, source_type, status_code, 
+             is_error, response_time, error_message, check_timestamp, updated_at
       FROM health_checks 
-      ORDER BY source_name, check_timestamp DESC
+      ORDER BY source_name
     `);
     
-    console.log(`✅ Found ${latestChecks.rows.length} latest health checks`);
+    console.log(`✅ Found ${latestChecks.rows.length} health check records`);
+    console.log('Health check records:', latestChecks.rows.map(r => r.source_name));
     
     const results = [];
     
@@ -220,6 +338,15 @@ async function getLatestHealthData() {
         }
         
         results.push(result);
+        console.log(`✅ Added result for ${check.source_name}:`, {
+          name: result.name,
+          type: result.type,
+          hasHtmlData: !!result.htmlData,
+          hasXmlData: !!result.xmlData,
+          hasRssData: !!result.rssData,
+          hasJsonData: !!result.jsonData,
+          componentCount: result.htmlData?.totalComponents || result.xmlData?.totalComponents || result.rssData?.totalComponents || result.jsonData?.totalComponents || 0
+        });
       } catch (componentError) {
         console.error(`❌ Error processing components for ${check.source_name}:`, componentError.message);
         // Add the result anyway but without component data
@@ -244,25 +371,6 @@ async function getLatestHealthData() {
   }
 }
 
-async function cleanupOldData() {
-  try {
-    // Keep only the last 100 health checks per source
-    await pool.query(`
-      DELETE FROM health_checks 
-      WHERE id NOT IN (
-        SELECT id FROM (
-          SELECT id, ROW_NUMBER() OVER (PARTITION BY source_name ORDER BY check_timestamp DESC) as rn
-          FROM health_checks
-        ) t WHERE rn <= 100
-      )
-    `);
-    
-    console.log('🧹 Cleaned up old health check data');
-  } catch (error) {
-    console.error('❌ Error cleaning up old data:', error.message);
-  }
-}
-
 // Background monitoring function
 async function performHealthChecks() {
   console.log('🔍 Performing background health checks...');
@@ -270,18 +378,13 @@ async function performHealthChecks() {
   try {
     const results = await checkAllSources();
     
-    // Store each result in the database
+    // Store/update each result in the database
     for (const result of results) {
       await storeHealthCheck(result);
     }
     
     const summary = generateSummary(results);
     console.log(`✅ Health checks completed: ${summary.healthySources}/${summary.totalSources} sources healthy`);
-    
-    // Cleanup old data every 24 hours (if it's been roughly that long)
-    if (Math.random() < 0.01) { // 1% chance each check (roughly once per day if checking every 5 minutes)
-      await cleanupOldData();
-    }
     
   } catch (error) {
     console.error('❌ Background health check failed:', error.message);
@@ -1093,26 +1196,29 @@ function parseElementsForOutages(elements, $) {
 // Function to parse HTML status page
 function parseHtmlStatus(html, htmlConfig) {
   try {
+    console.log(`🔍 parseHtmlStatus called for selector: ${htmlConfig.componentSelector}`);
     const $ = cheerio.load(html);
     const components = [];
     let totalErrors = 0;
     
     // Debug: Log what we're looking for
-   // console.log(`🔍 Looking for components with selector: ${htmlConfig.componentSelector}`);
+    console.log(`🔍 Looking for components with selector: ${htmlConfig.componentSelector}`);
     
     // Handle special Springshare blog logic
     if (htmlConfig.customLogic === 'springshare-blog') {
+      console.log('📝 Using Springshare blog logic');
       return parseSpringshareBloc(html, $, htmlConfig);
     }
     
     // Handle special OCLC services logic
     if (htmlConfig.customLogic === 'oclc-services') {
+      console.log('🔧 Using OCLC services logic');
       return parseOclcServices(html, $, htmlConfig);
     }
     
     // First, try to find any elements with the selector
     const foundElements = $(htmlConfig.componentSelector);
-  //  console.log(`📊 Found ${foundElements.length} potential components`);
+    console.log(`📊 Found ${foundElements.length} potential components`);
     
     // If no components found with primary selector, try fallback selectors
     if (foundElements.length === 0) {
@@ -1176,14 +1282,24 @@ function parseHtmlStatus(html, htmlConfig) {
       });
     }
     
-   // console.log(`📈 Processed ${components.length} components, ${totalErrors} with errors`);
+    console.log(`📈 Processed ${components.length} components, ${totalErrors} with errors`);
     
-    return {
+    const result = {
       totalComponents: components.length,
       errorCount: totalErrors,
       healthyCount: components.length - totalErrors,
       components: components
     };
+    
+    console.log('🎯 parseHtmlStatus returning:', {
+      totalComponents: result.totalComponents,
+      errorCount: result.errorCount,
+      healthyCount: result.healthyCount,
+      componentsLength: result.components.length,
+      firstComponent: result.components[0]?.name || 'none'
+    });
+    
+    return result;
   } catch (error) {
     console.error(`❌ HTML parsing error: ${error.message}`);
     throw new Error(`Failed to parse HTML: ${error.message}`);
@@ -1510,7 +1626,15 @@ async function checkSource(source) {
 
     // Handle HTML parsing
     if (source.type === 'html' && source.htmlConfig) {
+      console.log(`🔍 Parsing HTML for ${source.name}...`);
       const htmlData = parseHtmlStatus(response.data, source.htmlConfig);
+      console.log(`📊 HTML parsing result for ${source.name}:`, {
+        totalComponents: htmlData.totalComponents,
+        errorCount: htmlData.errorCount,
+        healthyCount: htmlData.healthyCount,
+        componentsLength: htmlData.components?.length || 0,
+        firstComponent: htmlData.components?.[0]?.name || 'none'
+      });
       
       return {
         name: source.name,
@@ -1671,11 +1795,27 @@ async function checkAllSources() {
 
 // Function to generate summary
 function generateSummary(results) {
+  console.log('🔍 Generating summary for results:', results.map(r => ({
+    name: r.name,
+    type: r.type,
+    hasHtmlData: !!r.htmlData,
+    hasXmlData: !!r.xmlData,
+    hasRssData: !!r.rssData,
+    hasJsonData: !!r.jsonData,
+    componentCount: r.htmlData?.totalComponents || r.xmlData?.totalComponents || r.rssData?.totalComponents || r.jsonData?.totalComponents || 0
+  })));
+  
+  // Find the most recent check time from all results
+  const checkTimes = results.map(r => new Date(r.timestamp)).filter(date => !isNaN(date));
+  const latestCheckTime = checkTimes.length > 0 ? 
+    new Date(Math.max(...checkTimes)).toISOString() : 
+    new Date().toISOString();
+  
   const summary = {
     totalSources: results.length,
     healthySources: results.filter(r => !r.isError).length,
     errorSources: results.filter(r => r.isError).length,
-    checkTime: new Date().toISOString(),
+    checkTime: latestCheckTime, // Use actual database timestamp
     sources: results.map(result => ({
       name: result.name,
       type: result.type,
@@ -1685,10 +1825,13 @@ function generateSummary(results) {
       htmlData: result.htmlData || null,
       xmlData: result.xmlData || null,
       rssData: result.rssData || null,
-      jsonData: result.jsonData || null
+      jsonData: result.jsonData || null,
+      lastUpdated: result.timestamp // Include individual timestamps
     }))
   };
 
+  console.log(`📊 Summary: ${summary.totalSources} sources, ${summary.healthySources} healthy, ${summary.errorSources} errors`);
+  console.log(`🕐 Latest check time: ${latestCheckTime}`);
   return summary;
 }
 
@@ -1790,7 +1933,8 @@ app.get('/', async (req, res) => {
             
             <div class="db-info">
                 <strong>📊 Data Source:</strong> PostgreSQL Database (Updated every 5 minutes)<br>
-                <strong>⏰ Last Database Update:</strong> <span id="lastUpdate">${new Date(summary.checkTime).toLocaleString()}</span>
+                <strong>⏰ Last Database Update:</strong> <span id="lastUpdate">${new Date(summary.checkTime).toLocaleString()}</span><br>
+                <strong>🔄 Records:</strong> Updates existing records instead of creating duplicates
             </div>
             
             <div class="manual-check">
@@ -1814,6 +1958,7 @@ app.get('/', async (req, res) => {
                     <strong>${source.name}</strong>
                     <span class="status ${source.status === 'OK' ? 'ok' : 'error'}">[${source.status}]</span>
                     ${source.responseTime ? `<div class="response-time">Response Time: ${source.responseTime}ms</div>` : ''}
+                    ${source.lastUpdated ? `<div class="response-time">Last Updated: ${new Date(source.lastUpdated).toLocaleString()}</div>` : ''}
                     ${source.errorMessage ? `<div class="error">Error: ${source.errorMessage}</div>` : ''}
                     ${source.htmlData ? `
                         <div class="html-details">
@@ -1852,15 +1997,15 @@ app.get('/', async (req, res) => {
                     ${source.rssData ? `
                         <div class="rss-details">
                             <strong>RSS Items:</strong> ${source.rssData.totalComponents} total, 
-                            ${source.rssData.totalComponents - source.rssData.totalErrors} normal, ${source.rssData.totalErrors} issues
+                            ${source.rssData.healthyCount} normal, ${source.rssData.errorCount} issues
                             ${source.rssData.components.length > 0 ? `
                                 <details style="margin-top: 10px;">
                                     <summary>View RSS Items</summary>
                                     <ul style="margin: 5px 0;">
                                         ${source.rssData.components.map(comp => 
                                             `<li><strong>${comp.name}:</strong> ${comp.status} ${comp.isError ? '❌' : '✅'}
-                                            ${comp.details.description ? `<br><span style="color:#666; font-size:0.9em;">${comp.details.description}</span>` : ''}
-                                            ${comp.details.pubDate ? `<br><span style="color:#888; font-size:0.8em;">Published: ${comp.details.pubDate}</span>` : ''}</li>`
+                                            ${comp.details && comp.details.description ? `<br><span style="color:#666; font-size:0.9em;">${comp.details.description}</span>` : ''}
+                                            ${comp.details && comp.details.pubDate ? `<br><span style="color:#888; font-size:0.8em;">Published: ${comp.details.pubDate}</span>` : ''}</li>`
                                         ).join('')}
                                     </ul>
                                 </details>
