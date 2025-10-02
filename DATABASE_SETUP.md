@@ -43,12 +43,21 @@ PORT=3020
 The application automatically creates these tables:
 
 ### health_checks
-- Stores main health check results for each source
+- Stores one current health check record per source (upserted on each check)
 - Includes response times, error status, timestamps
+- Uses `source_name` as unique key to prevent duplicates
 
 ### components  
 - Stores individual component details for each health check
 - Links to health_checks via foreign key relationship
+- Refreshed completely on each health check to avoid stale data
+
+## Data Management
+
+- **Upsert Pattern**: Updates existing records instead of creating duplicates
+- **Single Record Per Source**: Each external source has only one current record
+- **Component Refresh**: Components are completely replaced on each update
+- **No Manual Cleanup**: No accumulation of historical records to manage
 
 ## Running the Application
 
@@ -69,7 +78,7 @@ The application will:
 - **Web Dashboard**: Real-time view of health status from database
 - **Manual Refresh**: Force immediate health checks via web interface
 - **API Endpoints**: JSON access to health data
-- **Automatic Cleanup**: Keeps last 100 checks per source to manage database size
+- **Efficient Storage**: One record per source, updated in place
 
 ## API Endpoints
 
@@ -82,5 +91,6 @@ The application will:
 
 - **Fast Response**: Web requests read from database instead of checking external sources
 - **Reliability**: Background monitoring continues even if no users are viewing the dashboard
-- **History**: Database stores historical health check data
+- **Current Data**: Database always contains the most recent status for each source
 - **Scalability**: Multiple application instances can share the same database
+- **No Bloat**: Database size remains constant as records are updated, not accumulated
