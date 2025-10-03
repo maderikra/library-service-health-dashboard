@@ -30,12 +30,10 @@
                     <div class="error">Error: <%= source.errorMessage %></div>
                 <% } %>
                 <% if (source.htmlData) { %>
-                    <div class="html-details">
-                        <strong>Components:</strong> <%= source.htmlData.totalComponents %> total, 
-                        <%= source.htmlData.healthyCount %> healthy, <%= source.htmlData.errorCount %> with issues
+                    <div class="html-details">                        
                         <% if (source.htmlData.components.length > 0) { %>
-                            <details style="margin-top: 10px;">
-                                <summary>View Components</summary>
+                            <details>
+                                <summary><%= source.htmlData.healthyCount %> services operational, <%= source.htmlData.errorCount %> with issues</summary>
                                 <ul style="margin: 5px 0;">
                                     <% source.htmlData.components.forEach(comp => { %>
                                         <li><strong><%= comp.name %>:</strong> <%= comp.status %> <%= comp.isError ? '❌' : '✅' %>
@@ -69,11 +67,9 @@
                 <% } %>
                 <% if (source.rssData) { %>
                     <div class="rss-details">
-                        <strong>RSS Items:</strong> <%= source.rssData.totalComponents %> total, 
-                        <%= source.rssData.healthyCount %> normal, <%= source.rssData.errorCount %> issues
                         <% if (source.rssData.components.length > 0) { %>
-                            <details style="margin-top: 10px;">
-                                <summary>View RSS Items</summary>
+                            <details>
+                                <summary><%= source.rssData.healthyCount %> services operational, <%= source.rssData.errorCount %> with issues</summary>
                                 <ul style="margin: 5px 0;">
                                     <% source.rssData.components.forEach(comp => { %>
                                         <li><strong><%= comp.name %>:</strong> <%= comp.status %> <%= comp.isError ? '❌' : '✅' %>
@@ -91,11 +87,9 @@
                 <% } %>
                 <% if (source.jsonData) { %>
                     <div class="json-details">
-                        <strong>JSON Services:</strong> <%= source.jsonData.totalComponents %> total, 
-                        <%= source.jsonData.totalComponents - source.jsonData.errorCount %> operational, <%= source.jsonData.errorCount %> with issues
                         <% if (source.jsonData.components.length > 0) { %>
-                            <details style="margin-top: 10px;">
-                                <summary>View JSON Services</summary>
+                            <details>
+                                <summary><%= source.jsonData.totalComponents - source.jsonData.errorCount %> services operational, <%= source.jsonData.errorCount %> with issues</summary>
                                 <ul style="margin: 5px 0;">
                                     <% source.jsonData.components.forEach(comp => { %>
                                         <li><strong><%= comp.name %>:</strong> <%= comp.status %> <%= comp.isError ? '❌' : '✅' %>

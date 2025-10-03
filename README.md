@@ -1,6 +1,12 @@
 # System Health Monitor
 
-A Node.js application that monitors the health of external services and provides real-time status updates.
+A Node.js application that monitors the health of library vendor services and provides real-time status updates. Include configurations for:
+
+* OCLC
+* Ebsco
+* Springshare
+* Gale
+* ProQuest
 
 ## Installation
 
