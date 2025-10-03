@@ -1,0 +1,25 @@
+
+body { font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+.header { text-align: center; color: #333; margin-bottom: 30px; }
+.summary { background: #e3f2fd; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+.source { margin: 10px 0; padding: 15px; border-radius: 5px; border-left: 4px solid #ddd; position: relative; }
+.source.ok { border-left-color: #4caf50; background: #f1f8e9; }
+.source.error { border-left-color: #f44336; background: #ffebee; }
+.status { font-weight: bold; }
+.ok { color: #4caf50; }
+.error { color: #f44336; }
+.response-time { color: #666; font-size: 0.9em; }
+.refresh-btn { background: #2196f3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 10px 0; }
+.refresh-btn:hover { background: #1976d2; }
+.external-link { color: #666; text-decoration: none; font-size: 1.2em; position: absolute; top: 15px; right: 15px; }
+.external-link:hover { color: #2196f3; }
+.source-link { color: #2196f3; text-decoration: none; font-size: 0.9em; }
+.source-link:hover { text-decoration: underline; }
+.html-details, .xml-details, .rss-details, .json-details { margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 4px; font-size: 0.9em; }
+details summary { cursor: pointer; font-weight: bold; }
+details ul { padding-left: 20px; }
+.db-info { background: #e8f5e8; padding: 10px; border-radius: 4px; margin-bottom: 20px; font-size: 0.9em; }
+.check-btn { background: #17a2b8; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px; }
+.check-btn:hover { background: #138496; }
+.check-btn:disabled { background: #6c757d; cursor: not-allowed; }

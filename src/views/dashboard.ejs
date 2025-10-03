@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Library Services Health Monitor</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Library Services Health Monitor</h1>
+        </div>
+
+        <strong>Last Database Update:</strong> <span id="lastUpdate"><%= new Date(summary.checkTime).toLocaleString() %></span><br><br>
+        <button class="check-btn" onclick="performManualCheck()" id="manualCheckBtn">🔄 Run Health Check Now</button>
+        <span id="checkStatus"></span>
+    
+        <% summary.sources.forEach(source => { %>
+            <div class="source <%= source.status === 'OK' ? 'ok' : 'error' %>">
+                <% const externalSource = externalSources.find(s => s.name === source.name); %>
+                <a href="<%= externalSource?.url || '#' %>" target="_blank" class="external-link" title="View <%= source.name %> source">↗︎</a>
+                <strong><%= source.name %></strong>
+                <span class="status <%= source.status === 'OK' ? 'ok' : 'error' %>">[<%= source.status %>]</span>
+                <% if (source.responseTime) { %>
+                    <div class="response-time">Response Time: <%= source.responseTime %>ms</div>
+                <% } %>
+                <% if (source.lastUpdated) { %>
+                    <div class="response-time">Last Updated: <%= new Date(source.lastUpdated).toLocaleString() %></div>
+                <% } %>
+                <% if (source.errorMessage) { %>
+                    <div class="error">Error: <%= source.errorMessage %></div>
+                <% } %>
+                <% if (source.htmlData) { %>
+                    <div class="html-details">
+                        <strong>Components:</strong> <%= source.htmlData.totalComponents %> total, 
+                        <%= source.htmlData.healthyCount %> healthy, <%= source.htmlData.errorCount %> with issues
+                        <% if (source.htmlData.components.length > 0) { %>
+                            <details style="margin-top: 10px;">
+                                <summary>View Components</summary>
+                                <ul style="margin: 5px 0;">
+                                    <% source.htmlData.components.forEach(comp => { %>
+                                        <li><strong><%= comp.name %>:</strong> <%= comp.status %> <%= comp.isError ? '❌' : '✅' %>
+                                        <% if (comp.details && comp.details.url) { %>
+                                            <br><a href="<%= comp.details.url %>" target="_blank" class="source-link">⧉ View Post</a>
+                                        <% } %></li>
+                                    <% }) %>
+                                </ul>
+                            </details>
+                        <% } %>
+                    </div>
+                <% } %>
+                <% if (source.xmlData) { %>
+                    <div class="xml-details">
+                        <strong>Services:</strong> <%= source.xmlData.totalComponents %> total, 
+                        <%= source.xmlData.healthyCount %> operational, <%= source.xmlData.errorCount %> with issues
+                        <% if (source.xmlData.components.length > 0) { %>
+                            <details style="margin-top: 10px;">
+                                <summary>View Services</summary>
+                                <ul style="margin: 5px 0;">
+                                    <% source.xmlData.components.forEach(comp => { %>
+                                        <li><strong><%= comp.name %>:</strong> <%= comp.status %> <%= comp.isError ? '❌' : '✅' %>
+                                        <% if (comp.errorMessages.length > 0) { %>
+                                            <br><span style="color:#666; font-size:0.9em;">Issues: <%= comp.errorMessages.join(', ') %></span>
+                                        <% } %></li>
+                                    <% }) %>
+                                </ul>
+                            </details>
+                        <% } %>
+                    </div>
+                <% } %>
+                <% if (source.rssData) { %>
+                    <div class="rss-details">
+                        <strong>RSS Items:</strong> <%= source.rssData.totalComponents %> total, 
+                        <%= source.rssData.healthyCount %> normal, <%= source.rssData.errorCount %> issues
+                        <% if (source.rssData.components.length > 0) { %>
+                            <details style="margin-top: 10px;">
+                                <summary>View RSS Items</summary>
+                                <ul style="margin: 5px 0;">
+                                    <% source.rssData.components.forEach(comp => { %>
+                                        <li><strong><%= comp.name %>:</strong> <%= comp.status %> <%= comp.isError ? '❌' : '✅' %>
+                                        <% if (comp.details && comp.details.description) { %>
+                                            <br><span style="color:#666; font-size:0.9em;"><%= comp.details.description %></span>
+                                        <% } %>
+                                        <% if (comp.details && comp.details.pubDate) { %>
+                                            <br><span style="color:#888; font-size:0.8em;">Published: <%= comp.details.pubDate %></span>
+                                        <% } %></li>
+                                    <% }) %>
+                                </ul>
+                            </details>
+                        <% } %>
+                    </div>
+                <% } %>
+                <% if (source.jsonData) { %>
+                    <div class="json-details">
+                        <strong>JSON Services:</strong> <%= source.jsonData.totalComponents %> total, 
+                        <%= source.jsonData.totalComponents - source.jsonData.errorCount %> operational, <%= source.jsonData.errorCount %> with issues
+                        <% if (source.jsonData.components.length > 0) { %>
+                            <details style="margin-top: 10px;">
+                                <summary>View JSON Services</summary>
+                                <ul style="margin: 5px 0;">
+                                    <% source.jsonData.components.forEach(comp => { %>
+                                        <li><strong><%= comp.name %>:</strong> <%= comp.status %> <%= comp.isError ? '❌' : '✅' %>
+                                        <% if (comp.statusText) { %>
+                                            <br><span style="color:#666; font-size:0.9em;">Status: <%= comp.statusText %></span>
+                                        <% } %></li>
+                                    <% }) %>
+                                </ul>
+                            </details>
+                        <% } %>
+                    </div>
+                <% } %>
+            </div>
+        <% }) %>
+                    
+        <div style="margin-top: 20px; padding: 10px; background: #f9f9f9; border-radius: 4px;">
+            <strong>API Endpoints:</strong><br>
+            <a href="/health">/health</a> - JSON summary (from database)
+        </div>
+    </div>
+    <script src="/js/main.js"></script>
+    
+</body>
+</html>
