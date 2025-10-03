@@ -3,7 +3,7 @@ async function performManualCheck() {
     const status = document.getElementById('checkStatus');
     
     btn.disabled = true;
-    btn.textContent = 'Checking...';
+ //   btn.textContent = 'Checking...';
     status.textContent = 'Performing health checks...';
     status.style.color = '#666';
     

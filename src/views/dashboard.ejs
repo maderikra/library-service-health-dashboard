@@ -8,24 +8,19 @@
     <div class="container">
         <div class="header">
             <h1>Library Services Health Monitor</h1>
+       
+
+            <strong>Last Database Update:</strong> <span id="lastUpdate"><%= new Date(summary.checkTime).toLocaleString() %></span><a class="check-btn" onclick="performManualCheck()" id="manualCheckBtn">🔄</a>
+            <span id="checkStatus"></span>
         </div>
 
-        <strong>Last Database Update:</strong> <span id="lastUpdate"><%= new Date(summary.checkTime).toLocaleString() %></span><br><br>
-        <button class="check-btn" onclick="performManualCheck()" id="manualCheckBtn">Run Health Check Now</button>
-        <span id="checkStatus"></span>
-    
+        <div class="sources-container">
         <% summary.sources.forEach(source => { %>
             <div class="source <%= source.status === 'OK' ? 'ok' : 'error' %>">
                 <% const externalSource = externalSources.find(s => s.name === source.name); %>
                 <a href="<%= externalSource?.url || '#' %>" target="_blank" class="external-link" title="View <%= source.name %> source">↗︎</a>
                 <strong><%= source.name %></strong>
-                <span class="status <%= source.status === 'OK' ? 'ok' : 'error' %>">[<%= source.status %>]</span>
-                <% if (source.responseTime) { %>
-                    <div class="response-time">Response Time: <%= source.responseTime %>ms</div>
-                <% } %>
-                <% if (source.lastUpdated) { %>
-                    <div class="response-time">Last Updated: <%= new Date(source.lastUpdated).toLocaleString() %></div>
-                <% } %>
+                <span class="status <%= source.status === 'OK' ? 'ok' : 'error' %>">(<%= source.status %>)</span>
                 <% if (source.errorMessage) { %>
                     <div class="error">Error: <%= source.errorMessage %></div>
                 <% } %>
@@ -102,8 +97,12 @@
                         <% } %>
                     </div>
                 <% } %>
+                                <% if (source.lastUpdated) { %>
+                    <div class="response-time">Last Updated: <%= new Date(source.lastUpdated).toLocaleString() %></div>
+                <% } %>
             </div>
         <% }) %>
+        </div>
                     
         <div style="margin-top: 20px; padding: 10px; background: #f9f9f9; border-radius: 4px;">
             <strong>API Endpoints:</strong><br>
