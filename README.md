@@ -1,6 +1,6 @@
-# System Health Monitor
+# Library Vendor Service Health Dashboard
 
-A Node.js application that monitors the health of library vendor services and provides real-time status updates. Include configurations for:
+A Node.js application that monitors the health of library vendor services and provides real-time status updates. Includes configurations for:
 
 * OCLC
 * Ebsco
