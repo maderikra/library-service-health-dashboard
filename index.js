@@ -1765,22 +1765,6 @@ app.get('/health', async (req, res) => {
   }
 });
 
-// API endpoint to get detailed results (from database)
-app.get('/health/detailed', async (req, res) => {
-  try {
-    const results = await getLatestHealthData();
-    res.json({
-      summary: generateSummary(results),
-      detailed: results
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: 'Failed to retrieve detailed health data from database',
-      message: error.message
-    });
-  }
-});
-
 // API endpoint to force immediate health check (stores in database)
 app.post('/health/check', async (req, res) => {
   try {
@@ -1931,9 +1915,7 @@ app.get('/', async (req, res) => {
                         
             <div style="margin-top: 20px; padding: 10px; background: #f9f9f9; border-radius: 4px;">
                 <strong>API Endpoints:</strong><br>
-                <a href="/health">/health</a> - JSON summary (from database)<br>
-                <a href="/health/detailed">/health/detailed</a> - Detailed JSON response (from database)<br>
-                <a href="#" onclick="performManualCheck(); return false;">/health/check</a> - Force immediate health check
+                <a href="/health">/health</a> - JSON summary (from database)
             </div>
         </div>
         
