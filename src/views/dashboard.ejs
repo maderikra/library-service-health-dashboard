@@ -11,7 +11,7 @@
         </div>
 
         <strong>Last Database Update:</strong> <span id="lastUpdate"><%= new Date(summary.checkTime).toLocaleString() %></span><br><br>
-        <button class="check-btn" onclick="performManualCheck()" id="manualCheckBtn">🔄 Run Health Check Now</button>
+        <button class="check-btn" onclick="performManualCheck()" id="manualCheckBtn">Run Health Check Now</button>
         <span id="checkStatus"></span>
     
         <% summary.sources.forEach(source => { %>
@@ -113,7 +113,7 @@
                     
         <div style="margin-top: 20px; padding: 10px; background: #f9f9f9; border-radius: 4px;">
             <strong>API Endpoints:</strong><br>
-            <a href="/health">/health</a> - JSON summary (from database)
+            <a href="/health">/health</a>
         </div>
     </div>
     <script src="/js/main.js"></script>
