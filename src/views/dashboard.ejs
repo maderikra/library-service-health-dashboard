@@ -2,7 +2,7 @@
 <html>
 <head>
     <title>Library Services Health Monitor</title>
-    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="<%= basePath %>/css/styles.css">
 </head>
 <body>
     <div class="container">
@@ -106,10 +106,14 @@
                     
         <div style="margin-top: 20px; padding: 10px; background: #f9f9f9; border-radius: 4px;">
             <strong>API Endpoints:</strong><br>
-            <a href="/health">/health</a>
+            <a href="<%= basePath %>/health"><%= basePath %>/health</a>
         </div>
     </div>
-    <script src="/js/main.js"></script>
+    <script>
+        // Make base path available to client-side JavaScript
+        window.basePath = '<%= basePath %>';
+    </script>
+    <script src="<%= basePath %>/js/main.js"></script>
     
 </body>
 </html>

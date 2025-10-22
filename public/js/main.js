@@ -8,7 +8,8 @@ async function performManualCheck() {
     status.style.color = '#666';
     
     try {
-        const response = await fetch('/health/check', { method: 'POST' });
+        const basePath = window.basePath || '';
+        const response = await fetch(basePath + '/health/check', { method: 'POST' });
         const data = await response.json();
         
         if (response.ok) {
