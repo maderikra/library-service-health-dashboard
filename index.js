@@ -13,14 +13,36 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3020;
 
+// Get the base path from environment variable or default to root
+const BASE_PATH = process.env.BASE_PATH || '';
+
 // Set the view engine to EJS
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'src/views'));
-app.use(express.static(path.join(__dirname, 'public')));
+
+// Serve static files with the base path
+if (BASE_PATH) {
+  app.use(BASE_PATH, express.static(path.join(__dirname, 'public')));
+} else {
+  app.use(express.static(path.join(__dirname, 'public')));
+}
+
+// Make BASE_PATH available to all views
+app.use((req, res, next) => {
+  res.locals.basePath = BASE_PATH;
+  next();
+});
+
+// If BASE_PATH is set, add a redirect from root to the base path
+if (BASE_PATH) {
+  app.get('/', (req, res) => {
+    res.redirect(BASE_PATH + '/');
+  });
+}
 
 // set routes
-app.use('/health', healthRoutes);
-app.use('/', dashboardRoutes);
+app.use(BASE_PATH + '/health', healthRoutes);
+app.use(BASE_PATH, dashboardRoutes);
 
 
 // Start the server
