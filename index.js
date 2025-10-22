@@ -33,6 +33,13 @@ app.use((req, res, next) => {
   next();
 });
 
+// If BASE_PATH is set, add a redirect from root to the base path
+if (BASE_PATH) {
+  app.get('/', (req, res) => {
+    res.redirect(BASE_PATH + '/');
+  });
+}
+
 // set routes
 app.use(BASE_PATH + '/health', healthRoutes);
 app.use(BASE_PATH, dashboardRoutes);
